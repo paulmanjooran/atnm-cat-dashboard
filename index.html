@@ -284,9 +284,9 @@ const SCL={'Completed':C.g,'In Progress':C.o,'Not Started':C.d,'Reassessment':C.
 
 // ── BOOT ─────────────────────────────────────────────────────────
 // ── JSONP loader — bypasses CORS for Workspace-hosted Apps Script ──
-function jsonp(action, timeoutMs) {
+function jsonp(action, extraParams, timeoutMs) {
   return new Promise((resolve, reject) => {
-    const cbName = 'cb_' + action + '_' + Date.now();
+    const cbName = 'cb_' + action + '_' + Date.now() + '_' + Math.floor(Math.random()*1000);
     const script = document.createElement('script');
     let done = false;
 
@@ -304,10 +304,14 @@ function jsonp(action, timeoutMs) {
     };
 
     script.onerror = () => { if (!done) { cleanup(); reject(new Error('Network/script load failed')); } };
-    script.src = API + '?action=' + encodeURIComponent(action) + '&callback=' + cbName;
+    let url = API + '?action=' + encodeURIComponent(action) + '&callback=' + cbName;
+    if (extraParams) {
+      Object.keys(extraParams).forEach(k => { url += '&' + k + '=' + encodeURIComponent(extraParams[k]); });
+    }
+    script.src = url;
     document.body.appendChild(script);
 
-    setTimeout(() => { if (!done) { cleanup(); reject(new Error('Request timed out')); } }, timeoutMs || 60000);
+    setTimeout(() => { if (!done) { cleanup(); reject(new Error('Request timed out')); } }, timeoutMs || 45000);
   });
 }
 
@@ -315,7 +319,7 @@ function jsonp(action, timeoutMs) {
   lmsg('Loading KPIs and charts...', 25);
   try {
     // Stage 1: dashboard aggregates (via JSONP)
-    DATA = await jsonp('dashboard', 60000);
+    DATA = await jsonp('dashboard', null, 45000);
 
     lmsg('Rendering charts...', 60);
     renderKPIs(DATA.kpis);
@@ -333,18 +337,35 @@ function jsonp(action, timeoutMs) {
     document.getElementById('ovBadge').textContent = DATA.kpis.completionRate + '% Complete';
     document.getElementById('updAt').textContent   = 'Updated: ' + new Date(DATA.generatedAt).toLocaleTimeString();
 
-    // Stage 2: table records (via JSONP)
-    lmsg('Loading records table...', 80);
+    // Stage 2: table records — load page by page (each call small & fast)
+    lmsg('Loading records table...', 85);
     document.getElementById('tAllB').innerHTML =
       '<tr><td colspan="10" style="text-align:center;padding:20px;color:#888;">⏳ Loading records...</td></tr>';
 
-    ALL  = await jsonp('table', 60000);
+    ALL = [];
+    let pg = await jsonp('table', { page: 0 }, 45000);
+    ALL = ALL.concat(pg.rows);
     FILT = ALL;
-    document.getElementById('fcnt').textContent = ALL.length + ' records';
+    document.getElementById('fcnt').textContent = ALL.length + ' of ' + pg.total + ' records';
     renderTable();
 
+    // First page is in — hide loader, dashboard is usable now
     lmsg('Done!', 100);
-    setTimeout(hideLdr, 400);
+    setTimeout(hideLdr, 300);
+
+    // Stream remaining pages in the background
+    (async () => {
+      for (let p = 1; p < pg.totalPages; p++) {
+        try {
+          const next = await jsonp('table', { page: p }, 45000);
+          ALL = ALL.concat(next.rows);
+          if (!filtersActive()) { FILT = ALL; renderTable(); }
+          document.getElementById('fcnt').textContent = ALL.length + ' of ' + pg.total + ' records loaded';
+        } catch(e) { /* skip failed page, continue */ }
+      }
+      document.getElementById('fcnt').textContent = ALL.length + ' records';
+      if (!filtersActive()) { FILT = ALL; renderTable(); }
+    })();
 
   } catch(err) {
     hideLdr();
@@ -507,6 +528,11 @@ function resetF(){
     renderProg(DATA.clusterMap); renderExpat(DATA.expatMap);
     document.getElementById('ovBadge').textContent=DATA.kpis.completionRate+'% Complete';
   }
+}
+
+// True if any filter is currently set
+function filtersActive(){
+  return v('fC')||v('fS')||v('fCr')||v('fE')||v('fG')||document.getElementById('fSr').value.trim();
 }
 
 // ── AGGREGATE ────────────────────────────────────────────────────
