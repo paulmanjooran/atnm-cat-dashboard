@@ -1,116 +1,653 @@
-# ATNM CAT Dashboard — GitHub Pages Setup
-
-## Files in this repo
-- `index.html` — full dashboard, loads instantly from GitHub CDN
-
----
-
-## Step 1 — Create GitHub Repo
-
-1. Go to https://github.com/new
-2. Repository name: `atnm-cat-dashboard` (or any name)
-3. Set to **Private** (recommended — internal HSE data)
-4. Click **Create repository**
-
----
-
-## Step 2 — Upload index.html
-
-1. In the new repo, click **Add file → Upload files**
-2. Upload `index.html`
-3. Commit message: `Initial CAT dashboard`
-4. Click **Commit changes**
-
----
-
-## Step 3 — Enable GitHub Pages
-
-1. Go to repo **Settings → Pages**
-2. Source: **Deploy from a branch**
-3. Branch: **main** | Folder: **/ (root)**
-4. Click **Save**
-5. Wait ~60 seconds — your URL will be:
-   `https://YOUR-USERNAME.github.io/atnm-cat-dashboard/`
-
----
-
-## Step 4 — Update Apps Script doGet()
-
-Replace the existing `doGet()` in your `Code.gs` with:
-
-```javascript
-function doGet(e) {
-  const action = (e && e.parameter && e.parameter.action) || 'dashboard';
-  let result;
-  try {
-    if (action === 'table') {
-      result = { ok: true, data: getTableRecords() };
-    } else {
-      result = { ok: true, data: getDashboardData() };
-    }
-  } catch (err) {
-    result = { ok: false, error: err.message };
-  }
-  return ContentService
-    .createTextOutput(JSON.stringify(result))
-    .setMimeType(ContentService.MimeType.JSON);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ATNM | CAT Dashboard 2026–2027</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ── RESET & VARIABLES ── */
+:root {
+  --blue:   #21409a; --blue2: #1a3280; --orange: #f58220;
+  --dark:   #4d555b; --green: #1a7a4a; --red:    #d93025;
+  --purple: #9c27b0; --white: #ffffff; --bg:     #eef0f6;
+  --card:   #ffffff; --bord:  #e0e4ed; --text:   #2d3748; --sub: #64748b;
 }
-```
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);font-size:13px;}
 
-Then **redeploy**: Deploy → Manage Deployments → Edit → New Version → Deploy
+/* ── LOADING SCREEN ── */
+#loadScreen{
+  position:fixed;inset:0;background:linear-gradient(135deg,#1a3280,#21409a);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:9999;transition:opacity .4s ease;
+}
+#loadScreen.fade{opacity:0;pointer-events:none;}
+.spin{width:52px;height:52px;border:4px solid rgba(255,255,255,.15);
+  border-top-color:#f58220;border-radius:50%;animation:spin .75s linear infinite;margin-bottom:18px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.load-title{color:#fff;font-size:17px;font-weight:700;}
+.load-sub{color:rgba(255,255,255,.5);font-size:12px;margin-top:6px;}
+.load-bar{width:240px;height:4px;background:rgba(255,255,255,.15);border-radius:2px;margin-top:20px;overflow:hidden;}
+.load-fill{height:4px;background:#f58220;border-radius:2px;width:0;transition:width .4s ease;}
 
-**IMPORTANT — Access setting:**
-- Who has access: **Anyone** (not "Anyone with Google account")
-- This is required for the GitHub Pages HTML to call the API
+/* ── HEADER ── */
+.header{
+  background:linear-gradient(135deg,var(--blue),var(--blue2));
+  padding:0 24px;display:flex;align-items:center;justify-content:space-between;
+  height:58px;position:sticky;top:0;z-index:100;
+  box-shadow:0 2px 10px rgba(0,0,0,.2);
+}
+.header h1{color:#fff;font-size:15px;font-weight:700;}
+.header-sub{color:#a8c4ff;font-size:10px;margin-top:2px;}
+.hdr-right{display:flex;align-items:center;gap:10px;}
+.badge-o{background:rgba(245,130,32,.15);border:1.5px solid var(--orange);
+  color:var(--orange);border-radius:20px;padding:4px 14px;font-size:12px;font-weight:700;}
+.upd{color:#a8c4ff;font-size:10px;}
 
----
+/* ── MAIN ── */
+.main{padding:18px 22px;max-width:1600px;margin:0 auto;}
 
-## Step 5 — Update API URL in index.html
+/* ── FILTER BAR ── */
+.fbar{
+  background:var(--card);border-radius:10px;padding:12px 18px;
+  display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;
+  margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border:1px solid var(--bord);
+}
+.fg{display:flex;flex-direction:column;gap:3px;}
+.fg label{font-size:10px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.4px;}
+.fbar select,.fbar input{
+  border:1px solid var(--bord);border-radius:6px;padding:6px 10px;
+  font-size:12px;color:var(--text);background:#f8f9ff;outline:none;
+}
+.fbar select:focus,.fbar input:focus{border-color:var(--blue);}
+.btn{padding:7px 16px;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;}
+.btn-o{background:var(--orange);color:#fff;}
+.btn-d{background:var(--dark);color:#fff;}
+.btn:hover{opacity:.85;}
+.fcnt{margin-left:auto;font-size:11px;color:var(--sub);align-self:center;}
 
-In `index.html`, find line:
-```javascript
-const API = 'https://script.google.com/a/macros/altasnim.com/s/AKfyc...exec';
-```
-Replace the URL with your current deployed Web App URL if it changed after redeployment.
+/* ── KPI GRID ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:12px;margin-bottom:16px;}
+.kpi{background:var(--card);border-radius:10px;padding:14px 8px;text-align:center;
+  box-shadow:0 1px 4px rgba(0,0,0,.07);border:1px solid var(--bord);border-top:4px solid var(--blue);}
+.kv{font-size:24px;font-weight:800;line-height:1.1;}
+.kl{font-size:9px;color:var(--sub);margin-top:4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;}
+.ks{font-size:10px;margin-top:3px;font-weight:600;}
 
----
+/* ── GRIDS ── */
+.g3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px;margin-bottom:14px;}
+.g2{display:grid;grid-template-columns:1fr 1fr;    gap:14px;margin-bottom:14px;}
+.gf{margin-bottom:14px;}
 
-## Step 6 — Google Sites Embed
+/* ── CARD ── */
+.card{background:var(--card);border-radius:10px;padding:16px 18px;
+  box-shadow:0 1px 4px rgba(0,0,0,.07);border:1px solid var(--bord);}
+.ctitle{font-size:13px;font-weight:700;color:var(--blue);margin-bottom:12px;
+  padding-bottom:8px;border-bottom:2px solid var(--blue);
+  display:flex;align-items:center;justify-content:space-between;}
+.ctitle span{color:var(--sub);font-size:10px;font-weight:400;}
 
-Use this embed code in Google Sites (Insert → Embed → Embed code):
+/* ── CHARTS ── */
+.ch-lg{position:relative;height:260px;}
+.ch-md{position:relative;height:210px;}
 
-```html
-<iframe
-  src="https://YOUR-USERNAME.github.io/atnm-cat-dashboard/"
-  width="100%"
-  height="950"
-  frameborder="0"
-  style="border-radius:8px;">
-</iframe>
-```
+/* ── PROGRESS BARS ── */
+.pw{margin-bottom:10px;}
+.pl{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;}
+.pt{height:8px;background:#e8eaf6;border-radius:4px;overflow:hidden;}
+.pf{height:8px;border-radius:4px;transition:width .8s ease;}
 
----
+/* ── TABLE ── */
+.tw{overflow-x:auto;max-height:400px;overflow-y:auto;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead th{
+  background:var(--blue);color:#fff;padding:9px 10px;
+  text-align:left;font-weight:600;font-size:11px;
+  position:sticky;top:0;z-index:1;cursor:pointer;white-space:nowrap;
+}
+thead th:hover{background:var(--blue2);}
+tbody tr:nth-child(even){background:#f8f9ff;}
+tbody tr:hover{background:#e8f0fe;}
+tbody td{padding:7px 10px;border-bottom:1px solid var(--bord);vertical-align:middle;}
 
-## Performance Comparison
+/* ── BADGES ── */
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;}
+.bc{background:#e8f5e9;color:#1a7a4a;} .bp{background:#fff3e0;color:#e65100;}
+.bn{background:#f3f4f6;color:#4d555b;} .br{background:#f3e5f5;color:#7b1fa2;}
+.bh{background:#ffebee;color:#c62828;} .bm{background:#fff8e1;color:#e65100;}
+.bl{background:#e8f5e9;color:#2e7d32;} .bg-{background:#ffebee;color:#c62828;}
+.bo{background:#e8f5e9;color:#2e7d32;}
 
-| Before | After |
-|--------|-------|
-| 30 seconds | 2–4 seconds |
-| Apps Script renders full HTML | GitHub CDN serves HTML instantly |
-| Single blocking call | Two async JSON calls (staged) |
-| No caching at HTML level | Browser caches HTML |
+/* ── TABS ── */
+.tabs{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap;}
+.tab{padding:7px 16px;border:1px solid var(--bord);border-radius:6px;
+  background:var(--card);cursor:pointer;font-size:12px;font-weight:600;color:var(--sub);}
+.tab.active{background:var(--blue);color:#fff;border-color:var(--blue);}
+.tc{display:none;} .tc.active{display:block;}
 
----
+/* ── PAGINATION ── */
+.pag{display:flex;justify-content:space-between;align-items:center;padding-top:10px;font-size:11px;color:var(--sub);}
+.pbtns{display:flex;gap:4px;}
+.pb{padding:4px 10px;border:1px solid var(--bord);background:var(--card);border-radius:4px;cursor:pointer;font-size:11px;}
+.pb.active{background:var(--blue);color:#fff;border-color:var(--blue);}
+.pb:hover:not(.active){background:#e8f0fe;}
 
-## To Update Dashboard After Sheet Changes
+/* ── ERROR ── */
+.err-box{background:#ffebee;border:1px solid #ef9a9a;border-radius:8px;padding:16px 20px;
+  color:#c62828;font-size:13px;margin-bottom:16px;}
 
-If you update the spreadsheet structure or want fresh data:
-1. Open Apps Script → run `clearCache()`
-2. Reload the GitHub Pages URL — it will fetch fresh JSON
+/* ── RESPONSIVE ── */
+@media(max-width:1100px){.g3{grid-template-columns:1fr 1fr;}.kpi-grid{grid-template-columns:repeat(4,1fr);}}
+@media(max-width:700px) {.g3,.g2{grid-template-columns:1fr;}.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+</style>
+</head>
+<body>
 
-The dashboard auto-refreshes cached data every 15 minutes via the Apps Script trigger already set up.
+<!-- LOADING SCREEN -->
+<div id="loadScreen">
+  <div class="spin"></div>
+  <div class="load-title">ATNM CAT Dashboard</div>
+  <div class="load-sub" id="lmsg">Fetching data from spreadsheet...</div>
+  <div class="load-bar"><div class="load-fill" id="lbar"></div></div>
+</div>
 
----
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <h1>ATNM HSE CAT &mdash; PDO ODC 2026–2027</h1>
+    <div class="header-sub">Competency Assessment Tracker &nbsp;|&nbsp; Visual Management Dashboard</div>
+  </div>
+  <div class="hdr-right">
+    <div class="badge-o" id="ovBadge">Loading...</div>
+    <div class="upd" id="updAt"></div>
+  </div>
+</div>
 
-*Al Tasnim Enterprises LLC | Quality You Can Build On | التسنيم*
-*ATNM HSE CAT PDO ODC 2026–2027*
+<div class="main">
+
+  <!-- ERROR BANNER -->
+  <div class="err-box" id="errBox" style="display:none;"></div>
+
+  <!-- FILTER BAR -->
+  <div class="fbar">
+    <div class="fg"><label>🏗 Cluster</label>
+      <select id="fC" onchange="applyF()">
+        <option value="">All Clusters</option>
+        <option>Amal</option><option>Marmul Well Delivery</option>
+        <option>Marmul Projects</option><option>Greater Birba</option><option>Nimr</option>
+      </select></div>
+    <div class="fg"><label>📋 Status</label>
+      <select id="fS" onchange="applyF()">
+        <option value="">All</option><option>Completed</option>
+        <option>In Progress</option><option>Not Started</option><option>Reassessment</option>
+      </select></div>
+    <div class="fg"><label>⚠ Criticality</label>
+      <select id="fCr" onchange="applyF()">
+        <option value="">All</option><option>High</option><option>Medium</option><option>Low</option>
+      </select></div>
+    <div class="fg"><label>👤 Type</label>
+      <select id="fE" onchange="applyF()">
+        <option value="">All</option><option>Expat</option><option>National</option>
+      </select></div>
+    <div class="fg"><label>🔴 Gaps</label>
+      <select id="fG" onchange="applyF()">
+        <option value="">All</option><option value="yes">With Gaps</option><option value="no">No Gaps</option>
+      </select></div>
+    <div class="fg"><label>🔍 Search</label>
+      <input id="fSr" type="text" placeholder="Name / Assessor / Title..." oninput="applyF()" style="width:190px;"></div>
+    <button class="btn btn-o" onclick="resetF()">✕ Reset</button>
+    <button class="btn btn-d" onclick="exportCSV()">⬇ Export CSV</button>
+    <div class="fcnt" id="fcnt"></div>
+  </div>
+
+  <!-- KPI CARDS -->
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <!-- ROW 1 -->
+  <div class="g3">
+    <div class="card"><div class="ctitle">📊 Cluster Completion</div><div class="ch-lg"><canvas id="cCluster"></canvas></div></div>
+    <div class="card"><div class="ctitle">🥧 Status Distribution</div><div class="ch-lg"><canvas id="cStatus"></canvas></div></div>
+    <div class="card"><div class="ctitle">🎯 Critical Position</div><div class="ch-lg"><canvas id="cCrit"></canvas></div></div>
+  </div>
+
+  <!-- ROW 2 -->
+  <div class="g2">
+    <div class="card"><div class="ctitle">👤 Assessor Workload <span>Top 15</span></div><div class="ch-lg"><canvas id="cAss"></canvas></div></div>
+    <div class="card"><div class="ctitle">🔴 Gap Areas</div><div class="ch-lg"><canvas id="cGap"></canvas></div></div>
+  </div>
+
+  <!-- ROW 3 -->
+  <div class="g2">
+    <div class="card"><div class="ctitle">📈 Cluster Progress</div><div id="progBars"></div></div>
+    <div class="card"><div class="ctitle">🌍 Expat vs National</div><div class="ch-md"><canvas id="cExpat"></canvas></div></div>
+  </div>
+
+  <!-- TABS -->
+  <div class="card gf">
+    <div class="tabs">
+      <div class="tab active" onclick="swTab('tAll',this)">📋 All Assessees</div>
+      <div class="tab"        onclick="swTab('tGap',this)">🔴 Gap Records</div>
+      <div class="tab"        onclick="swTab('tAss',this)">👤 Assessors</div>
+      <div class="tab"        onclick="swTab('tClu',this)">🏗 Clusters</div>
+    </div>
+
+    <div class="tc active" id="tAll">
+      <div class="tw">
+        <table><thead><tr>
+          <th style="width:36px">#</th>
+          <th onclick="srt(1)">Name ↕</th><th onclick="srt(2)">Cluster ↕</th>
+          <th onclick="srt(3)">Assessor ↕</th><th onclick="srt(4)">Job Title ↕</th>
+          <th onclick="srt(5)">Crit ↕</th><th onclick="srt(6)">Type ↕</th>
+          <th onclick="srt(7)">Status ↕</th><th onclick="srt(8)">Plan End ↕</th>
+          <th onclick="srt(9)">Gap ↕</th>
+        </tr></thead>
+        <tbody id="tAllB"></tbody></table>
+      </div>
+      <div class="pag"><div id="pgInfo">—</div><div class="pbtns" id="pgBtns"></div></div>
+    </div>
+
+    <div class="tc" id="tGap">
+      <div class="tw"><table><thead><tr>
+        <th>#</th><th>Name</th><th>Cluster</th><th>Assessor</th>
+        <th>Job Title</th><th>Gap Description</th><th>Improvement Plan</th><th>Reassessment</th>
+      </tr></thead><tbody id="tGapB"></tbody></table></div>
+    </div>
+
+    <div class="tc" id="tAss">
+      <div class="tw"><table><thead><tr>
+        <th>#</th><th>Assessor</th><th>Cluster</th>
+        <th>Total</th><th>Completed</th><th>In Progress</th><th>Gaps</th><th>Rate</th><th>Progress</th>
+      </tr></thead><tbody id="tAssB"></tbody></table></div>
+    </div>
+
+    <div class="tc" id="tClu">
+      <div class="tw"><table><thead><tr>
+        <th>Cluster</th><th>Total</th><th>Completed</th><th>In Progress</th>
+        <th>Not Started</th><th>Reassessment</th><th>Gaps</th><th>Overdue</th><th>%</th><th>RAG</th>
+      </tr></thead><tbody id="tCluB"></tbody></table></div>
+    </div>
+  </div>
+
+</div><!-- end .main -->
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────
+// !! REPLACE WITH YOUR DEPLOYED WEB APP URL !!
+const API = 'https://script.google.com/a/macros/altasnim.com/s/AKfycbz6tIFIvZoYLRtrJdMwVEtPj8KPOhbvXU5pc5rokyPemyvZrnxkgqVgZIMUHh30NjAK/exec';
+
+// ── STATE ────────────────────────────────────────────────────────
+let DATA=null, ALL=[], FILT=[], CH={}, PAGE=1, SC=-1, SD=1;
+const PS=50;
+const C={b:'#21409a',o:'#f58220',d:'#4d555b',g:'#1a7a4a',r:'#d93025',p:'#9c27b0'};
+const SCL={'Completed':C.g,'In Progress':C.o,'Not Started':C.d,'Reassessment':C.p};
+
+// ── BOOT ─────────────────────────────────────────────────────────
+(async function init() {
+  lmsg('Loading KPIs and charts...', 25);
+  try {
+    // Stage 1: dashboard aggregates
+    const r1   = await fetch(API + '?action=dashboard');
+    const j1   = await r1.json();
+    if (!j1.ok) throw new Error(j1.error);
+    DATA = j1.data;
+
+    lmsg('Rendering charts...', 60);
+    renderKPIs(DATA.kpis);
+    renderCluster(DATA.clusterMap);
+    renderStatus(DATA.kpis);
+    renderCrit(DATA.critMap);
+    renderAss(DATA.topAssessors);
+    renderGap(DATA.gapThemes);
+    renderProg(DATA.clusterMap);
+    renderExpat(DATA.expatMap);
+    renderGapTab(DATA.gapRecords);
+    renderAssTab(DATA.topAssessors);
+    renderCluTab(DATA.clusterMap);
+
+    document.getElementById('ovBadge').textContent = DATA.kpis.completionRate + '% Complete';
+    document.getElementById('updAt').textContent   = 'Updated: ' + new Date(DATA.generatedAt).toLocaleTimeString();
+
+    // Stage 2: table records
+    lmsg('Loading records table...', 80);
+    document.getElementById('tAllB').innerHTML =
+      '<tr><td colspan="10" style="text-align:center;padding:20px;color:#888;">⏳ Loading records...</td></tr>';
+
+    const r2   = await fetch(API + '?action=table');
+    const j2   = await r2.json();
+    if (!j2.ok) throw new Error(j2.error);
+    ALL  = j2.data;
+    FILT = ALL;
+    document.getElementById('fcnt').textContent = ALL.length + ' records';
+    renderTable();
+
+    lmsg('Done!', 100);
+    setTimeout(hideLdr, 400);
+
+  } catch(err) {
+    hideLdr();
+    const eb = document.getElementById('errBox');
+    eb.style.display = 'block';
+    eb.textContent = '❌ Could not load dashboard data. Error: ' + err.message +
+      ' — Ensure Apps Script is deployed as Web App with access: Anyone.';
+  }
+})();
+
+function lmsg(m,p){ document.getElementById('lmsg').textContent=m; document.getElementById('lbar').style.width=p+'%'; }
+function hideLdr(){ const s=document.getElementById('loadScreen'); s.classList.add('fade'); setTimeout(()=>s.style.display='none',450); }
+
+// ── KPIs ─────────────────────────────────────────────────────────
+function renderKPIs(k) {
+  const items=[
+    {l:'Total',       v:k.total,              c:C.b,                                               s:null},
+    {l:'Completed',   v:k.completed,          c:C.g,                                               s:k.completionRate+'%'},
+    {l:'In Progress', v:k.inProgress,         c:C.o,                                               s:pct(k.inProgress,k.total)},
+    {l:'Not Started', v:k.notStarted,         c:C.d,                                               s:pct(k.notStarted,k.total)},
+    {l:'Reassessment',v:k.reassessment,       c:C.p,                                               s:pct(k.reassessment,k.total)},
+    {l:'With Gaps',   v:k.withGaps,           c:C.r,                                               s:pct(k.withGaps,k.completed)+' done'},
+    {l:'Overdue',     v:k.overdue,            c:k.overdue>0?C.r:C.d,                              s:k.overdue>0?'⚠ Action':'On Track'},
+    {l:'Completion',  v:k.completionRate+'%', c:k.completionRate>=80?C.g:k.completionRate>=60?C.o:C.r, s:'Overall'},
+  ];
+  document.getElementById('kpiGrid').innerHTML=items.map(i=>`
+    <div class="kpi" style="border-top-color:${i.c}">
+      <div class="kv" style="color:${i.c}">${i.v}</div>
+      <div class="kl">${i.l}</div>
+      ${i.s?`<div class="ks" style="color:${i.c}">${i.s}</div>`:''}
+    </div>`).join('');
+}
+
+// ── CHARTS ───────────────────────────────────────────────────────
+function renderCluster(cm){
+  const L=Object.keys(cm);
+  kl('cCluster');
+  CH.cl=new Chart(g('cCluster'),{type:'bar',data:{labels:L,datasets:[
+    {label:'Completed',   data:L.map(l=>cm[l].completed),    backgroundColor:C.g},
+    {label:'In Progress', data:L.map(l=>cm[l].inProgress),   backgroundColor:C.o},
+    {label:'Not Started', data:L.map(l=>cm[l].notStarted),   backgroundColor:C.d},
+    {label:'Reassessment',data:L.map(l=>cm[l].reassessment), backgroundColor:C.p},
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{position:'top',labels:{font:{size:10}}}},
+    scales:{x:{stacked:true,ticks:{font:{size:9}}},y:{stacked:true,ticks:{font:{size:9}}}}}});
+}
+
+function renderStatus(k){
+  const raw=[k.completed,k.inProgress,k.notStarted,k.reassessment];
+  const lbl=['Completed','In Progress','Not Started','Reassessment'];
+  const pairs=lbl.map((l,i)=>({l,v:raw[i]})).filter(p=>p.v>0);
+  kl('cStatus');
+  CH.st=new Chart(g('cStatus'),{type:'doughnut',data:{
+    labels:pairs.map(p=>p.l),
+    datasets:[{data:pairs.map(p=>p.v),backgroundColor:pairs.map(p=>SCL[p.l]),borderWidth:2,borderColor:'#fff'}]
+  },options:{responsive:true,maintainAspectRatio:false,cutout:'60%',
+    plugins:{legend:{position:'bottom',labels:{font:{size:10},padding:6}},
+      tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${ctx.parsed} (${Math.round(ctx.parsed/ctx.dataset.data.reduce((a,b)=>a+b,0)*100)}%)`}}
+    }}});
+}
+
+function renderCrit(cm){
+  const L=['High','Medium','Low'];
+  kl('cCrit');
+  CH.cr=new Chart(g('cCrit'),{type:'bar',data:{labels:L,datasets:[
+    {label:'Total',    data:L.map(l=>cm[l]?.total||0),     backgroundColor:['#ffcdd2','#ffe0b2','#c8e6c9'],borderColor:[C.r,C.o,C.g],borderWidth:2},
+    {label:'Completed',data:L.map(l=>cm[l]?.completed||0), backgroundColor:[C.r,C.o,C.g]},
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{position:'top',labels:{font:{size:10}}}},
+    scales:{y:{ticks:{font:{size:9}}},x:{ticks:{font:{size:10}}}}}});
+}
+
+function renderAss(a){
+  if(!a||!a.length)return;
+  const t=a.slice(0,15);
+  kl('cAss');
+  CH.as=new Chart(g('cAss'),{type:'bar',indexAxis:'y',data:{
+    labels:t.map(x=>trunc(x.name,20)),
+    datasets:[
+      {label:'Completed',  data:t.map(x=>x.completed),  backgroundColor:C.g},
+      {label:'In Progress',data:t.map(x=>x.inProgress), backgroundColor:C.o},
+      {label:'With Gaps',  data:t.map(x=>x.withGaps),   backgroundColor:C.r},
+    ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{position:'top',labels:{font:{size:10}}}},
+    scales:{x:{stacked:true,ticks:{font:{size:9}}},y:{stacked:true,ticks:{font:{size:9}}}}}});
+}
+
+function renderGap(t){
+  if(!t||!t.length){g('cGap').parentElement.innerHTML='<div style="padding:30px;text-align:center;color:#888">No gap data</div>';return;}
+  const top=t.slice(0,12);
+  kl('cGap');
+  CH.gp=new Chart(g('cGap'),{type:'bar',indexAxis:'y',data:{
+    labels:top.map(x=>cap(x.theme)),
+    datasets:[{label:'Assessees',data:top.map(x=>x.count),backgroundColor:C.r+'cc',borderColor:C.r,borderWidth:1}]
+  },options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{x:{ticks:{font:{size:9}}},y:{ticks:{font:{size:9}}}}}});
+}
+
+function renderProg(cm){
+  document.getElementById('progBars').innerHTML=Object.entries(cm).map(([cl,d])=>{
+    const r=d.total>0?Math.round((d.completed/d.total)*100):0;
+    const c=r>=80?C.g:r>=60?C.o:C.r;
+    return `<div class="pw">
+      <div class="pl"><span><strong>${cl}</strong> <small style="color:#888">${d.completed}/${d.total}</small></span>
+        <span style="font-weight:700;color:${c}">${r}%</span></div>
+      <div class="pt"><div class="pf" style="width:${r}%;background:${c}"></div></div>
+      <div style="font-size:10px;color:#888;margin-top:2px">${d.inProgress} in progress · ${d.notStarted} not started · ${d.withGaps} gaps
+        ${d.overdue>0?` · <strong style="color:${C.r}">⚠ ${d.overdue} overdue</strong>`:''}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderExpat(em){
+  const L=Object.keys(em);
+  kl('cExpat');
+  CH.ex=new Chart(g('cExpat'),{type:'bar',data:{labels:L,datasets:[
+    {label:'Total',    data:L.map(l=>em[l].total),     backgroundColor:[C.b+'44',C.o+'44'],borderColor:[C.b,C.o],borderWidth:2},
+    {label:'Completed',data:L.map(l=>em[l].completed), backgroundColor:[C.b,C.o]},
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{position:'top',labels:{font:{size:10}}}},
+    scales:{y:{ticks:{font:{size:9}}}}}});
+}
+
+// ── FILTER ───────────────────────────────────────────────────────
+function applyF(){
+  if(!ALL.length)return;
+  const fC=v('fC'),fS=v('fS'),fCr=v('fCr'),fE=v('fE'),fG=v('fG');
+  const sr=document.getElementById('fSr').value.toLowerCase().trim();
+
+  FILT=ALL.filter(r=>{
+    if(fC  && r.cluster!==fC)          return false;
+    if(fS  && r.status!==fS)           return false;
+    if(fCr && r.criticalPosition!==fCr)return false;
+    if(fE  && r.expatNational!==fE)    return false;
+    if(fG==='yes'&&!r.hasGap)          return false;
+    if(fG==='no' && r.hasGap)          return false;
+    if(sr){const h=[r.name,r.assessor,r.jobTitle,r.cluster].join(' ').toLowerCase();if(!h.includes(sr))return false;}
+    return true;
+  });
+  PAGE=1;
+  document.getElementById('fcnt').textContent=FILT.length+' records';
+  renderTable();
+  const agg=aggr(FILT);
+  renderKPIs(agg.kpis); renderCluster(agg.clusterMap); renderStatus(agg.kpis);
+  renderCrit(agg.critMap); renderAss(agg.topAssessors); renderGap(agg.gapThemes);
+  renderProg(agg.clusterMap); renderExpat(agg.expatMap);
+  document.getElementById('ovBadge').textContent=agg.kpis.completionRate+'% Complete';
+}
+
+function resetF(){
+  ['fC','fS','fCr','fE','fG'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('fSr').value='';
+  FILT=ALL; PAGE=1;
+  document.getElementById('fcnt').textContent=ALL.length+' records';
+  renderTable();
+  if(DATA){
+    renderKPIs(DATA.kpis); renderCluster(DATA.clusterMap); renderStatus(DATA.kpis);
+    renderCrit(DATA.critMap); renderAss(DATA.topAssessors); renderGap(DATA.gapThemes);
+    renderProg(DATA.clusterMap); renderExpat(DATA.expatMap);
+    document.getElementById('ovBadge').textContent=DATA.kpis.completionRate+'% Complete';
+  }
+}
+
+// ── AGGREGATE ────────────────────────────────────────────────────
+function aggr(recs){
+  const td=new Date();
+  const tot=recs.length, comp=recs.filter(r=>r.status==='Completed').length,
+    prog=recs.filter(r=>r.status==='In Progress').length,
+    notS=recs.filter(r=>r.status==='Not Started').length,
+    reas=recs.filter(r=>r.status==='Reassessment').length,
+    gaps=recs.filter(r=>r.hasGap).length,
+    ovrd=recs.filter(r=>r.status!=='Completed'&&r.plannedEnd&&new Date(r.plannedEnd)<td).length;
+
+  const cm={};
+  if(DATA)Object.keys(DATA.clusterMap).forEach(k=>{cm[k]={total:0,completed:0,inProgress:0,notStarted:0,reassessment:0,withGaps:0,overdue:0};});
+  recs.forEach(r=>{
+    if(!cm[r.cluster])cm[r.cluster]={total:0,completed:0,inProgress:0,notStarted:0,reassessment:0,withGaps:0,overdue:0};
+    const c=cm[r.cluster];c.total++;
+    if(r.status==='Completed')c.completed++;if(r.status==='In Progress')c.inProgress++;
+    if(r.status==='Not Started')c.notStarted++;if(r.status==='Reassessment')c.reassessment++;
+    if(r.hasGap)c.withGaps++;
+    if(r.status!=='Completed'&&r.plannedEnd&&new Date(r.plannedEnd)<td)c.overdue++;
+  });
+
+  const am={};
+  recs.forEach(r=>{
+    if(!am[r.assessor])am[r.assessor]={cluster:r.cluster,total:0,completed:0,inProgress:0,withGaps:0};
+    am[r.assessor].total++;
+    if(r.status==='Completed')am[r.assessor].completed++;
+    if(r.status==='In Progress')am[r.assessor].inProgress++;
+    if(r.hasGap)am[r.assessor].withGaps++;
+  });
+  const top=Object.entries(am).filter(([k])=>k!=='Unassigned')
+    .sort((a,b)=>b[1].total-a[1].total).slice(0,15)
+    .map(([n,d])=>({name:n,...d,rate:d.total>0?Math.round((d.completed/d.total)*100):0}));
+
+  const crm={High:{total:0,completed:0},Medium:{total:0,completed:0},Low:{total:0,completed:0}};
+  recs.forEach(r=>{const cp=crm[r.criticalPosition]?r.criticalPosition:'Low';crm[cp].total++;if(r.status==='Completed')crm[cp].completed++;});
+
+  const em={Expat:{total:0,completed:0},National:{total:0,completed:0}};
+  recs.forEach(r=>{const k=r.expatNational==='National'?'National':'Expat';em[k].total++;if(r.status==='Completed')em[k].completed++;});
+
+  const kw=['risk assessment','risk register','hse plan','hsems','ptw','incident investigation',
+    'emergency','journey plan','hse policies','loto','hazard','moc','proactive','legal requirement','risk normalisation'];
+  const gm={};
+  recs.filter(r=>r.hasGap).forEach(r=>{const lo=(r.gaps||'').toLowerCase();kw.forEach(k=>{if(lo.includes(k))gm[k]=(gm[k]||0)+1;});});
+  const gt=Object.entries(gm).sort((a,b)=>b[1]-a[1]).map(([theme,count])=>({theme,count}));
+
+  return{kpis:{total:tot,completed:comp,inProgress:prog,notStarted:notS,reassessment:reas,
+    withGaps:gaps,overdue:ovrd,completionRate:tot>0?Math.round((comp/tot)*100):0},
+    clusterMap:cm,topAssessors:top,critMap:crm,expatMap:em,gapThemes:gt};
+}
+
+// ── TABLE ────────────────────────────────────────────────────────
+function renderTable(){
+  const st=(PAGE-1)*PS, sl=FILT.slice(st,st+PS), td=new Date();
+  document.getElementById('tAllB').innerHTML=sl.map((r,i)=>{
+    const od=r.status!=='Completed'&&r.plannedEnd&&new Date(r.plannedEnd)<td;
+    return`<tr>
+      <td style="color:#888;font-size:10px">${st+i+1}</td>
+      <td><strong>${e(r.name)}</strong><br><small style="color:#888">${e(r.empNumber)}</small></td>
+      <td>${e(r.cluster)}</td><td style="font-size:11px">${e(r.assessor)}</td>
+      <td style="font-size:11px;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${e(r.jobTitle)}">${e(r.jobTitle)}</td>
+      <td><span class="badge b${(r.criticalPosition||'l')[0].toLowerCase()}">${e(r.criticalPosition)}</span></td>
+      <td style="font-size:11px">${e(r.expatNational)}</td>
+      <td><span class="badge ${stB(r.status)}" ${od?'style="border:1.5px solid red"':''}>${e(r.status)}${od?' ⚠':''}</span></td>
+      <td style="font-size:11px;${od?'color:red;font-weight:bold':''}">${r.plannedEnd||'—'}</td>
+      <td><span class="badge ${r.hasGap?'bg-':'bo'}">${r.hasGap?'GAP':'✓'}</span></td>
+    </tr>`;
+  }).join('');
+
+  const tot=FILT.length, pgs=Math.ceil(tot/PS);
+  document.getElementById('pgInfo').textContent=`${st+1}–${Math.min(st+PS,tot)} of ${tot}`;
+  const pb=document.getElementById('pgBtns'); pb.innerHTML='';
+  if(PAGE>1)pb.innerHTML+=`<button class="pb" onclick="goPg(${PAGE-1})">‹</button>`;
+  const sp=Math.max(1,PAGE-2),ep=Math.min(pgs,sp+4);
+  for(let p=sp;p<=ep;p++)pb.innerHTML+=`<button class="pb ${p===PAGE?'active':''}" onclick="goPg(${p})">${p}</button>`;
+  if(PAGE<pgs)pb.innerHTML+=`<button class="pb" onclick="goPg(${PAGE+1})">›</button>`;
+}
+function goPg(p){PAGE=p;renderTable();}
+
+function srt(col){
+  if(SC===col)SD=-SD; else{SC=col;SD=1;}
+  const ks=['','name','cluster','assessor','jobTitle','criticalPosition','expatNational','status','plannedEnd','hasGap'];
+  FILT.sort((a,b)=>String(a[ks[col]]||'').localeCompare(String(b[ks[col]]||''))*SD);
+  PAGE=1;renderTable();
+}
+
+// ── GAP / ASSESSOR / CLUSTER TABS ───────────────────────────────
+function renderGapTab(gr){
+  document.getElementById('tGapB').innerHTML=(gr||[]).map((r,i)=>`
+    <tr><td style="color:#888;font-size:10px">${i+1}</td>
+    <td><strong>${e(r.name)}</strong></td><td>${e(r.cluster)}</td>
+    <td style="font-size:11px">${e(r.assessor)}</td><td style="font-size:11px">${e(r.jobTitle)}</td>
+    <td><div style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${e(r.gaps)}">${e(r.gaps)}</div></td>
+    <td style="font-size:11px">${e(r.improvementPlan)||'<span style="color:#aaa">Pending</span>'}</td>
+    <td>${r.reassessmentStatus?`<span class="badge ${r.reassessmentStatus.toLowerCase().includes('complet')?'bc':'bp'}">${e(r.reassessmentStatus)}</span>`:'<span style="color:#aaa">—</span>'}</td>
+    </tr>`).join('');
+}
+
+function renderAssTab(a){
+  document.getElementById('tAssB').innerHTML=(a||[]).map((x,i)=>{
+    const c=x.rate>=80?C.g:x.rate>=60?C.o:C.r;
+    return`<tr><td style="color:#888;font-size:10px">${i+1}</td>
+    <td><strong>${e(x.name)}</strong></td><td>${e(x.cluster)}</td>
+    <td style="text-align:center;font-weight:bold">${x.total}</td>
+    <td style="text-align:center;color:${C.g};font-weight:bold">${x.completed}</td>
+    <td style="text-align:center;color:${C.o}">${x.inProgress}</td>
+    <td style="text-align:center;color:${C.r}">${x.withGaps}</td>
+    <td style="text-align:center;font-weight:bold;color:${c}">${x.rate}%</td>
+    <td><div style="width:90px;height:8px;background:#e0e4ed;border-radius:4px;overflow:hidden">
+      <div style="height:8px;background:${c};width:${x.rate}%"></div></div></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderCluTab(cm){
+  document.getElementById('tCluB').innerHTML=Object.entries(cm).map(([cl,d])=>{
+    const r=d.total>0?Math.round((d.completed/d.total)*100):0;
+    const c=r>=80?C.g:r>=60?C.o:C.r;
+    const rag=r>=80?'🟢 On Track':r>=60?'🟡 Attention':'🔴 Critical';
+    return`<tr>
+      <td><strong>${cl}</strong></td>
+      <td style="text-align:center;font-weight:bold">${d.total}</td>
+      <td style="text-align:center;color:${C.g};font-weight:bold">${d.completed}</td>
+      <td style="text-align:center;color:${C.o}">${d.inProgress}</td>
+      <td style="text-align:center;color:${C.d}">${d.notStarted}</td>
+      <td style="text-align:center;color:${C.p}">${d.reassessment}</td>
+      <td style="text-align:center;color:${C.r}">${d.withGaps}</td>
+      <td style="text-align:center;${d.overdue>0?'color:'+C.r+';font-weight:bold':''}">${d.overdue>0?'⚠ '+d.overdue:'—'}</td>
+      <td style="text-align:center;font-weight:bold;color:${c}">${r}%</td>
+      <td>${rag}</td></tr>`;
+  }).join('');
+}
+
+// ── TABS ─────────────────────────────────────────────────────────
+function swTab(id,el){
+  document.querySelectorAll('.tc').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active'); el.classList.add('active');
+}
+
+// ── CSV EXPORT ───────────────────────────────────────────────────
+function exportCSV(){
+  const H=['Name','Emp#','Cluster','Assessor','Job Title','Criticality','Type','Status','Planned End','Actual End','Has Gap','Gap'];
+  const rows=FILT.map(r=>[r.name,r.empNumber,r.cluster,r.assessor,r.jobTitle,
+    r.criticalPosition,r.expatNational,r.status,r.plannedEnd||'',r.actualEnd||'',
+    r.hasGap?'YES':'NO','"'+(r.gaps||'').replace(/"/g,'""')+'"']);
+  const csv=[H.join(','),...rows.map(r=>r.join(','))].join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='ATNM_CAT_'+new Date().toISOString().split('T')[0]+'.csv';
+  a.click();
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────
+function g(id){return document.getElementById(id);}
+function v(id){return document.getElementById(id).value;}
+function kl(id){if(CH[id]){CH[id].destroy();delete CH[id];}}
+function e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function pct(n,d){return d>0?Math.round((n/d)*100)+'%':'0%';}
+function trunc(s,n){return s&&s.length>n?s.slice(0,n)+'…':(s||'');}
+function cap(s){return s?s[0].toUpperCase()+s.slice(1):'';}
+function stB(s){return s==='Completed'?'bc':s==='In Progress'?'bp':s==='Not Started'?'bn':'br';}
+</script>
+</body>
+</html>
