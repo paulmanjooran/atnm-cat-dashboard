@@ -403,7 +403,7 @@ function renderKPIs(k) {
 function renderCluster(cm){
   const L=Object.keys(cm);
   kl('cCluster');
-  CH.cl=new Chart(g('cCluster'),{type:'bar',data:{labels:L,datasets:[
+  CH['cCluster']=new Chart(g('cCluster'),{type:'bar',data:{labels:L,datasets:[
     {label:'Completed',   data:L.map(l=>cm[l].completed),    backgroundColor:C.g},
     {label:'In Progress', data:L.map(l=>cm[l].inProgress),   backgroundColor:C.o},
     {label:'Not Started', data:L.map(l=>cm[l].notStarted),   backgroundColor:C.d},
@@ -418,7 +418,7 @@ function renderStatus(k){
   const lbl=['Completed','In Progress','Not Started','Reassessment'];
   const pairs=lbl.map((l,i)=>({l,v:raw[i]})).filter(p=>p.v>0);
   kl('cStatus');
-  CH.st=new Chart(g('cStatus'),{type:'doughnut',data:{
+  CH['cStatus']=new Chart(g('cStatus'),{type:'doughnut',data:{
     labels:pairs.map(p=>p.l),
     datasets:[{data:pairs.map(p=>p.v),backgroundColor:pairs.map(p=>SCL[p.l]),borderWidth:2,borderColor:'#fff'}]
   },options:{responsive:true,maintainAspectRatio:false,cutout:'60%',
@@ -430,7 +430,7 @@ function renderStatus(k){
 function renderCrit(cm){
   const L=['High','Medium','Low'];
   kl('cCrit');
-  CH.cr=new Chart(g('cCrit'),{type:'bar',data:{labels:L,datasets:[
+  CH['cCrit']=new Chart(g('cCrit'),{type:'bar',data:{labels:L,datasets:[
     {label:'Total',    data:L.map(l=>cm[l]?.total||0),     backgroundColor:['#ffcdd2','#ffe0b2','#c8e6c9'],borderColor:[C.r,C.o,C.g],borderWidth:2},
     {label:'Completed',data:L.map(l=>cm[l]?.completed||0), backgroundColor:[C.r,C.o,C.g]},
   ]},options:{responsive:true,maintainAspectRatio:false,
@@ -442,7 +442,7 @@ function renderAss(a){
   if(!a||!a.length)return;
   const t=a.slice(0,15);
   kl('cAss');
-  CH.as=new Chart(g('cAss'),{type:'bar',indexAxis:'y',data:{
+  CH['cAss']=new Chart(g('cAss'),{type:'bar',indexAxis:'y',data:{
     labels:t.map(x=>trunc(x.name,20)),
     datasets:[
       {label:'Completed',  data:t.map(x=>x.completed),  backgroundColor:C.g},
@@ -454,10 +454,20 @@ function renderAss(a){
 }
 
 function renderGap(t){
-  if(!t||!t.length){g('cGap').parentElement.innerHTML='<div style="padding:30px;text-align:center;color:#888">No gap data</div>';return;}
-  const top=t.slice(0,12);
   kl('cGap');
-  CH.gp=new Chart(g('cGap'),{type:'bar',indexAxis:'y',data:{
+  const canvas = g('cGap');
+  if(!t||!t.length){
+    canvas.style.display='none';
+    let msg=document.getElementById('cGapMsg');
+    if(!msg){msg=document.createElement('div');msg.id='cGapMsg';msg.style.cssText='padding:30px;text-align:center;color:#888';canvas.parentElement.appendChild(msg);}
+    msg.textContent='No gap data for this selection';
+    msg.style.display='block';
+    return;
+  }
+  canvas.style.display='';
+  const msg=document.getElementById('cGapMsg'); if(msg)msg.style.display='none';
+  const top=t.slice(0,12);
+  CH['cGap']=new Chart(canvas,{type:'bar',indexAxis:'y',data:{
     labels:top.map(x=>cap(x.theme)),
     datasets:[{label:'Assessees',data:top.map(x=>x.count),backgroundColor:C.r+'cc',borderColor:C.r,borderWidth:1}]
   },options:{responsive:true,maintainAspectRatio:false,
@@ -482,7 +492,7 @@ function renderProg(cm){
 function renderExpat(em){
   const L=Object.keys(em);
   kl('cExpat');
-  CH.ex=new Chart(g('cExpat'),{type:'bar',data:{labels:L,datasets:[
+  CH['cExpat']=new Chart(g('cExpat'),{type:'bar',data:{labels:L,datasets:[
     {label:'Total',    data:L.map(l=>em[l].total),     backgroundColor:[C.b+'44',C.o+'44'],borderColor:[C.b,C.o],borderWidth:2},
     {label:'Completed',data:L.map(l=>em[l].completed), backgroundColor:[C.b,C.o]},
   ]},options:{responsive:true,maintainAspectRatio:false,
