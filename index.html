@@ -283,14 +283,39 @@ const C={b:'#21409a',o:'#f58220',d:'#4d555b',g:'#1a7a4a',r:'#d93025',p:'#9c27b0'
 const SCL={'Completed':C.g,'In Progress':C.o,'Not Started':C.d,'Reassessment':C.p};
 
 // ── BOOT ─────────────────────────────────────────────────────────
+// ── JSONP loader — bypasses CORS for Workspace-hosted Apps Script ──
+function jsonp(action, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const cbName = 'cb_' + action + '_' + Date.now();
+    const script = document.createElement('script');
+    let done = false;
+
+    const cleanup = () => {
+      done = true;
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    };
+
+    window[cbName] = (resp) => {
+      if (done) return;
+      cleanup();
+      if (resp && resp.ok) resolve(resp.data);
+      else reject(new Error(resp && resp.error ? resp.error : 'API returned error'));
+    };
+
+    script.onerror = () => { if (!done) { cleanup(); reject(new Error('Network/script load failed')); } };
+    script.src = API + '?action=' + encodeURIComponent(action) + '&callback=' + cbName;
+    document.body.appendChild(script);
+
+    setTimeout(() => { if (!done) { cleanup(); reject(new Error('Request timed out')); } }, timeoutMs || 60000);
+  });
+}
+
 (async function init() {
   lmsg('Loading KPIs and charts...', 25);
   try {
-    // Stage 1: dashboard aggregates
-    const r1   = await fetch(API + '?action=dashboard');
-    const j1   = await r1.json();
-    if (!j1.ok) throw new Error(j1.error);
-    DATA = j1.data;
+    // Stage 1: dashboard aggregates (via JSONP)
+    DATA = await jsonp('dashboard', 60000);
 
     lmsg('Rendering charts...', 60);
     renderKPIs(DATA.kpis);
@@ -308,15 +333,12 @@ const SCL={'Completed':C.g,'In Progress':C.o,'Not Started':C.d,'Reassessment':C.
     document.getElementById('ovBadge').textContent = DATA.kpis.completionRate + '% Complete';
     document.getElementById('updAt').textContent   = 'Updated: ' + new Date(DATA.generatedAt).toLocaleTimeString();
 
-    // Stage 2: table records
+    // Stage 2: table records (via JSONP)
     lmsg('Loading records table...', 80);
     document.getElementById('tAllB').innerHTML =
       '<tr><td colspan="10" style="text-align:center;padding:20px;color:#888;">⏳ Loading records...</td></tr>';
 
-    const r2   = await fetch(API + '?action=table');
-    const j2   = await r2.json();
-    if (!j2.ok) throw new Error(j2.error);
-    ALL  = j2.data;
+    ALL  = await jsonp('table', 60000);
     FILT = ALL;
     document.getElementById('fcnt').textContent = ALL.length + ' records';
     renderTable();
@@ -329,7 +351,7 @@ const SCL={'Completed':C.g,'In Progress':C.o,'Not Started':C.d,'Reassessment':C.
     const eb = document.getElementById('errBox');
     eb.style.display = 'block';
     eb.textContent = '❌ Could not load dashboard data. Error: ' + err.message +
-      ' — Ensure Apps Script is deployed as Web App with access: Anyone.';
+      ' — Confirm the Apps Script doGet() supports the callback parameter and is redeployed.';
   }
 })();
 
