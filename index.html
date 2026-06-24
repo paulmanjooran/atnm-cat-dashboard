@@ -344,9 +344,16 @@ function jsonp(action, extraParams, timeoutMs) {
 
     ALL = [];
     let pg = await jsonp('table', { page: 0 }, 45000);
-    ALL = ALL.concat(pg.rows);
+    // Guard: support both paged {rows,total,totalPages} and legacy flat array
+    let firstRows, totalRecs, totalPages;
+    if (Array.isArray(pg)) {
+      firstRows = pg; totalRecs = pg.length; totalPages = 1;
+    } else {
+      firstRows = pg.rows || []; totalRecs = pg.total || firstRows.length; totalPages = pg.totalPages || 1;
+    }
+    ALL = ALL.concat(firstRows);
     FILT = ALL;
-    document.getElementById('fcnt').textContent = ALL.length + ' of ' + pg.total + ' records';
+    document.getElementById('fcnt').textContent = ALL.length + ' of ' + totalRecs + ' records';
     renderTable();
 
     // First page is in — hide loader, dashboard is usable now
@@ -355,12 +362,13 @@ function jsonp(action, extraParams, timeoutMs) {
 
     // Stream remaining pages in the background
     (async () => {
-      for (let p = 1; p < pg.totalPages; p++) {
+      for (let p = 1; p < totalPages; p++) {
         try {
           const next = await jsonp('table', { page: p }, 45000);
-          ALL = ALL.concat(next.rows);
+          const nextRows = Array.isArray(next) ? next : (next.rows || []);
+          ALL = ALL.concat(nextRows);
           if (!filtersActive()) { FILT = ALL; renderTable(); }
-          document.getElementById('fcnt').textContent = ALL.length + ' of ' + pg.total + ' records loaded';
+          document.getElementById('fcnt').textContent = ALL.length + ' of ' + totalRecs + ' records loaded';
         } catch(e) { /* skip failed page, continue */ }
       }
       document.getElementById('fcnt').textContent = ALL.length + ' records';
@@ -523,19 +531,26 @@ function applyF(){
   renderKPIs(agg.kpis); renderCluster(agg.clusterMap); renderStatus(agg.kpis);
   renderCrit(agg.critMap); renderAss(agg.topAssessors); renderGap(agg.gapThemes);
   renderProg(agg.clusterMap); renderExpat(agg.expatMap);
+  // Keep the data tabs in sync with the filtered set
+  renderGapTab(FILT.filter(r=>r.hasGap));
+  renderAssTab(agg.topAssessors);
+  renderCluTab(agg.clusterMap);
   document.getElementById('ovBadge').textContent=agg.kpis.completionRate+'% Complete';
 }
 
 function resetF(){
   ['fC','fS','fCr','fE','fG'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('fSr').value='';
-  FILT=ALL; PAGE=1;
+  FILT=ALL; PAGE=1; SC=-1; SD=1;
   document.getElementById('fcnt').textContent=ALL.length+' records';
   renderTable();
   if(DATA){
     renderKPIs(DATA.kpis); renderCluster(DATA.clusterMap); renderStatus(DATA.kpis);
     renderCrit(DATA.critMap); renderAss(DATA.topAssessors); renderGap(DATA.gapThemes);
     renderProg(DATA.clusterMap); renderExpat(DATA.expatMap);
+    renderGapTab(DATA.gapRecords);
+    renderAssTab(DATA.topAssessors);
+    renderCluTab(DATA.clusterMap);
     document.getElementById('ovBadge').textContent=DATA.kpis.completionRate+'% Complete';
   }
 }
